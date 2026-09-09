@@ -11,6 +11,7 @@ RUN LATEST_URL=$(curl -s https://api.github.com/repos/pocketbase/pocketbase/rele
     && unzip /tmp/pb.zip -d /pb/ \
     && rm /tmp/pb.zip
     COPY pb_public ./pb_public
+    COPY pb_hooks ./pb_hooks
 
 EXPOSE 8080
 CMD ["sh", "-c", "/pb/pocketbase serve --http=0.0.0.0:${PORT:-8080}"]
