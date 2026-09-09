@@ -31,6 +31,34 @@
   }
   .wrap{ max-width:760px; margin:0 auto; }
 
+  .brand-bar{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin-bottom:24px;
+    padding-bottom:16px;
+    border-bottom:1px solid var(--hairline);
+  }
+  .brand-logo{ flex-shrink:0; display:block; }
+  .brand-name{
+    font-family:'Fraunces', serif;
+    font-weight:500;
+    font-size:14px;
+    letter-spacing:0.04em;
+    color:var(--paper-dim);
+    text-transform:uppercase;
+  }
+
+  .site-footer{
+    text-align:center;
+    margin-top:40px;
+    padding-top:16px;
+    font-size:11px;
+    color:var(--paper-dim);
+  }
+  .site-footer a{ color:var(--brass); text-decoration:none; }
+  .site-footer a:hover{ color:var(--brass-bright); }
+
   header{
     display:flex;
     align-items:center;
@@ -125,7 +153,7 @@
   }
   .form-grid{
     display:grid;
-    grid-template-columns:1.4fr 1.4fr 0.8fr 0.6fr;
+    grid-template-columns:1.2fr 1.1fr 0.7fr 0.9fr 0.6fr;
     gap:10px;
     align-items:end;
     margin-bottom:12px;
@@ -188,6 +216,12 @@
   }
   tbody td.num{ text-align:right; font-variant-numeric:tabular-nums; }
   tbody tr:last-child td{ border-bottom:none; }
+  .date-edit{
+    background:transparent; border:none; color:var(--paper); font-family:'IBM Plex Mono', monospace;
+    font-size:13px; padding:0; width:120px; cursor:pointer;
+  }
+  .date-edit:hover{ color:var(--brass); }
+  .date-edit:focus{ outline:none; color:var(--paper); cursor:text; }
   .song-name{ color:var(--paper); font-weight:500; }
   .work-type{ color:var(--paper-dim); font-size:11px; margin-top:2px; }
   .cost-cell{ color:var(--brass-bright); }
@@ -245,7 +279,11 @@
   .client-list{ display:flex; flex-direction:column; gap:10px; margin-bottom:28px; }
   .client-list a{ display:flex; justify-content:space-between; padding:14px 16px; background:var(--panel); border:1px solid var(--hairline); border-radius:3px; color:var(--paper); text-decoration:none; font-size:13px; }
   .client-list a:hover{ border-color:var(--brass); }
-  .client-list .budget{ color:var(--paper-dim); }
+  .client-list .budget{ color:var(--paper-dim); align-self:center; }
+  .client-list a > span:first-child{ display:flex; flex-direction:column; gap:3px; }
+  .client-name{ color:var(--paper); }
+  .client-meta{ color:var(--paper-dim); font-size:11px; }
+  .optional-tag{ color:var(--paper-dim); font-weight:400; text-transform:none; letter-spacing:0; font-size:9px; }
   .new-client-form{ display:grid; grid-template-columns:1.4fr 1fr 0.8fr; gap:10px; align-items:end; margin-bottom:12px; }
   .manager-heading{ font-family:'Fraunces', serif; font-weight:500; font-size:18px; color:var(--paper); margin:0 0 16px; }
 
@@ -259,7 +297,16 @@
 </style>
 </head>
 <body>
-<div class="wrap" id="app">Loading…</div>
+<div class="wrap">
+  <div class="brand-bar">
+    <img class="brand-logo" src="logo.png" width="44" height="44" alt="Little Rascal Records" />
+    <span class="brand-name">Little Rascal Records</span>
+  </div>
+  <div id="app">Loading…</div>
+  <footer class="site-footer">
+    Made by <a href="https://lrrecords.com.au" target="_blank" rel="noopener">Little Rascal Records</a>
+  </footer>
+</div>
 
 <script>
 (function(){
@@ -346,7 +393,7 @@
   // ---------- CLIENT MANAGER (no ?client= in URL) ----------
   async function renderClientManager(){
     app.innerHTML =
-      '<header><div class="header-text"><h1>LRR Ledger</h1><p>Client billing overview</p></div>' +
+      '<header><div class="header-text"><h1>Work Ledger</h1><p>Client billing overview</p></div>' +
       '<span class="logout-link" id="logoutLink">Sign out</span></header>' +
       '<h2 class="manager-heading">Clients</h2>' +
       '<div class="client-list" id="clientList">Loading…</div>' +
@@ -355,6 +402,10 @@
         '<div class="field"><label>NAME</label><input id="newName" /></div>' +
         '<div class="field"><label>SLUG</label><input id="newSlug" placeholder="auto-generated" /></div>' +
         '<div class="field"><label>BUDGET</label><input id="newBudget" type="number" value="500" step="0.01" /></div>' +
+      '</div>' +
+      '<div class="new-client-form">' +
+        '<div class="field"><label>CONTACT NAME <span class="optional-tag">optional</span></label><input id="newContact" /></div>' +
+        '<div class="field"><label>PROJECT <span class="optional-tag">optional</span></label><input id="newProject" /></div>' +
       '</div>' +
       '<button class="btn-add" id="newClientBtn">Add client</button>' +
       '<div class="save-note" id="managerNote"></div></div>';
@@ -368,7 +419,9 @@
         listEl.innerHTML = '<div style="color:var(--paper-dim);font-size:12px;">No clients yet — add one below.</div>';
       } else {
         listEl.innerHTML = list.items.map(function(c){
-          return '<a href="?client=' + encodeURIComponent(c.slug) + '"><span>' + escapeHtml(c.name) +
+          const meta = [c.project_name, c.contact_name].filter(Boolean).join(' \u2014 ');
+          return '<a href="?client=' + encodeURIComponent(c.slug) + '"><span><span class="client-name">' + escapeHtml(c.name) + '</span>' +
+            (meta ? '<span class="client-meta">' + escapeHtml(meta) + '</span>' : '') +
             '</span><span class="budget">' + money(c.budget) + ' budget</span></a>';
         }).join('');
       }
@@ -386,12 +439,14 @@
       const name = document.getElementById('newName').value.trim();
       const slug = document.getElementById('newSlug').value.trim();
       const budget = parseFloat(document.getElementById('newBudget').value) || 0;
+      const contact_name = document.getElementById('newContact').value.trim();
+      const project_name = document.getElementById('newProject').value.trim();
       const note = document.getElementById('managerNote');
       if (!name || !slug) { note.textContent = 'Name and slug are required.'; return; }
       try {
         await pbFetch('/api/collections/clients/records', {
           method: 'POST',
-          body: JSON.stringify({ name: name, slug: slug, budget: budget })
+          body: JSON.stringify({ name: name, slug: slug, budget: budget, contact_name: contact_name, project_name: project_name })
         });
         window.location.href = '?client=' + encodeURIComponent(slug);
       } catch (err) {
@@ -418,7 +473,7 @@
         '<div class="header-text">' +
           (isClientView ? '' : '<a href="?" class="back-link">&larr; All clients</a><br/>') +
           '<h1 id="clientHeading">' + escapeHtml(client.name) + ' — Work Ledger</h1>' +
-          '<p id="clientSub">' + (isClientView ? 'Prepared by Little Rascal Records' : escapeHtml(client.slug)) + '</p>' +
+          '<p id="clientSub">' + (isClientView ? 'Prepaid to Little Rascal Records' : escapeHtml(client.slug)) + '</p>' +
         '</div>' +
         (isClientView ? '' : '<span class="logout-link" id="logoutLink">Sign out</span>') +
       '</header>' +
@@ -428,6 +483,14 @@
         '<div class="cell"><label>REMAINING</label><div class="value remaining" id="remainingValue">$0.00</div></div>' +
         '<div class="meter-track"><div class="meter-fill" id="meterFill" style="width:0%;"></div></div>' +
       '</section>' +
+      (isClientView ? '' :
+      '<section class="panel">' +
+        '<h2>Client details</h2>' +
+        '<div class="new-client-form">' +
+          '<div class="field"><label>CONTACT NAME</label><input id="contactInput" /></div>' +
+          '<div class="field"><label>PROJECT</label><input id="projectInput" /></div>' +
+        '</div>' +
+      '</section>') +
       '<section class="panel" id="entryPanel">' +
         '<h2>Log new work</h2>' +
         '<div class="form-grid">' +
@@ -442,6 +505,7 @@
           '</select></div>' +
           '<div class="field" id="qtyField"><label id="qtyLabel">HOURS</label><input id="qtyInput" type="number" value="1" step="0.5" /></div>' +
           '<div class="field" id="customCostField" style="display:none;"><label>COST</label><input id="customCostInput" type="number" step="0.01" /></div>' +
+          '<div class="field"><label>DATE</label><input id="dateInput" type="date" /></div>' +
           '<button class="btn-add" id="addBtn">Add</button>' +
         '</div>' +
         '<div class="hint" id="rateHint"></div>' +
@@ -456,6 +520,8 @@
 
     const els = {
       budgetInput: document.getElementById('budgetInput'),
+      contactInput: document.getElementById('contactInput'),
+      projectInput: document.getElementById('projectInput'),
       spent: document.getElementById('spentValue'),
       remaining: document.getElementById('remainingValue'),
       meter: document.getElementById('meterFill'),
@@ -467,6 +533,7 @@
       qtyInput: document.getElementById('qtyInput'),
       customCostField: document.getElementById('customCostField'),
       customCostInput: document.getElementById('customCostInput'),
+      dateInput: document.getElementById('dateInput'),
       rateHint: document.getElementById('rateHint'),
       addBtn: document.getElementById('addBtn'),
       ledgerBody: document.getElementById('ledgerBody'),
@@ -474,6 +541,10 @@
       modeToggle: document.getElementById('modeToggle'),
       logoutLink: document.getElementById('logoutLink')
     };
+
+    if (els.dateInput) els.dateInput.value = new Date().toISOString().slice(0, 10);
+    if (els.contactInput) els.contactInput.value = client.contact_name || '';
+    if (els.projectInput) els.projectInput.value = client.project_name || '';
 
     if (els.logoutLink) els.logoutLink.addEventListener('click', function(){ clearToken(); renderLogin(); });
 
@@ -521,13 +592,17 @@
           tr.dataset.id = entry.id;
           if (!isClientView) tr.draggable = !isCoarsePointer;
           const dateStr = new Date(entry.date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+          const dateIso = new Date(entry.date).toISOString().slice(0, 10);
+          const dateCell = isClientView
+            ? dateStr
+            : '<input type="date" class="date-edit" data-id="' + entry.id + '" value="' + dateIso + '" />';
           const dragHandle = isClientView ? '' : '<span class="drag-handle" title="Drag to reorder">\u2630</span>';
           const touchControls = isClientView ? '' :
             '<button class="reorder-btn" data-id="' + entry.id + '" data-dir="up" title="Move up"' + (idx === 0 ? ' disabled' : '') + '>\u2191</button>' +
             '<button class="reorder-btn" data-id="' + entry.id + '" data-dir="down" title="Move down"' + (idx === entries.length - 1 ? ' disabled' : '') + '>\u2193</button>';
           tr.innerHTML =
             '<td>' + dragHandle + '<div class="song-name">' + escapeHtml(entry.song) + '</div><div class="work-type">' + escapeHtml(entry.label) + '</div></td>' +
-            '<td>' + dateStr + '</td>' +
+            '<td>' + dateCell + '</td>' +
             '<td class="num cost-cell">' + money(entry.cost) + '</td>' +
             '<td class="num balance-cell">' + money(running) + '</td>' +
             '<td class="row-actions">' + touchControls + (isClientView ? '' : '<button class="del-btn" data-id="' + entry.id + '" title="Remove">\u2715</button>') + '</td>';
@@ -548,6 +623,25 @@
               await pbFetch('/api/collections/work_entries/records/' + btn.getAttribute('data-id'), { method: 'DELETE' });
               render();
             } catch (err) { alert(err.message); }
+          });
+        });
+
+        els.ledgerBody.querySelectorAll('.date-edit').forEach(function(input){
+          input.addEventListener('change', async function(){
+            const id = input.getAttribute('data-id');
+            if (!input.value) return;
+            els.saveNote.textContent = 'Saving\u2026';
+            try {
+              await pbFetch('/api/collections/work_entries/records/' + id, {
+                method: 'PATCH',
+                body: JSON.stringify({ date: new Date(input.value + 'T12:00:00').toISOString() })
+              });
+              els.saveNote.textContent = 'Saved';
+            } catch (err) {
+              els.saveNote.textContent = 'Save failed';
+            }
+            setTimeout(function(){ els.saveNote.textContent = ''; }, 1500);
+            render();
           });
         });
 
@@ -636,6 +730,30 @@
       render();
     });
 
+    function saveClientField(field, value){
+      els.saveNote.textContent = 'Saving\u2026';
+      const body = {};
+      body[field] = value;
+      pbFetch('/api/collections/clients/records/' + client.id, {
+        method: 'PATCH',
+        body: JSON.stringify(body)
+      }).then(function(){
+        client[field] = value;
+        els.saveNote.textContent = 'Saved';
+      }).catch(function(){
+        els.saveNote.textContent = 'Save failed';
+      }).finally(function(){
+        setTimeout(function(){ els.saveNote.textContent = ''; }, 1500);
+      });
+    }
+
+    if (els.contactInput) els.contactInput.addEventListener('change', function(){
+      saveClientField('contact_name', els.contactInput.value.trim());
+    });
+    if (els.projectInput) els.projectInput.addEventListener('change', function(){
+      saveClientField('project_name', els.projectInput.value.trim());
+    });
+
     els.addBtn.addEventListener('click', async function(){
       const song = els.songInput.value.trim();
       if (!song) { els.songInput.focus(); return; }
@@ -652,6 +770,9 @@
 
       try {
         els.saveNote.textContent = 'Saving\u2026';
+        const chosenDate = els.dateInput && els.dateInput.value
+          ? new Date(els.dateInput.value + 'T12:00:00').toISOString()
+          : new Date().toISOString();
         await pbFetch('/api/collections/work_entries/records', {
           method: 'POST',
           body: JSON.stringify({
@@ -661,7 +782,7 @@
             quantity: type === 'custom' ? null : qty,
             rate: type === 'custom' ? null : RATES[type],
             cost: cost,
-            date: new Date().toISOString(),
+            date: chosenDate,
             label: label,
             sort_order: Date.now()
           })
