@@ -244,9 +244,9 @@
 <script>
 (function(){
   const API = window.location.origin;
-  const RATES = { editing: 50, mastering: 50, stem: 175, revision: 45 };
-  const QTY_LABELS = { editing: 'HOURS', mastering: 'SONGS', stem: 'SONGS', revision: 'ROUNDS', custom: 'QTY' };
-  const UNITS = { editing: 'hr', mastering: 'song', stem: 'song', revision: 'round' };
+  const RATES = { editing: 50, mastering: 50, stem: 175, revision: 0, extra_revision: 45 };
+  const QTY_LABELS = { editing: 'HOURS', mastering: 'SONGS', stem: 'SONGS', revision: 'ROUNDS', extra_revision: 'ROUNDS', custom: 'QTY' };
+  const UNITS = { editing: 'hr', mastering: 'song', stem: 'song', revision: 'round', extra_revision: 'round' };
 
   const app = document.getElementById('app');
   const params = new URLSearchParams(window.location.search);
@@ -414,7 +414,8 @@
             '<option value="editing">Editing</option>' +
             '<option value="mastering">Mastering</option>' +
             '<option value="stem">Stem mastering</option>' +
-            '<option value="revision">Extra revision round</option>' +
+            '<option value="revision">Revision (included)</option>' +
+            '<option value="extra_revision">Extra revision round</option>' +
             '<option value="custom">Custom</option>' +
           '</select></div>' +
           '<div class="field" id="qtyField"><label id="qtyLabel">HOURS</label><input id="qtyInput" type="number" value="1" step="0.5" /></div>' +
@@ -555,7 +556,8 @@
       if (type === 'editing') label = qty + ' hr' + (qty === 1 ? '' : 's') + ' editing';
       else if (type === 'mastering') label = 'Standard mastering \u00d7 ' + qty;
       else if (type === 'stem') label = 'Stem mastering \u00d7 ' + qty;
-      else if (type === 'revision') label = 'Extra revision round \u00d7 ' + qty;
+      else if (type === 'revision') label = 'Revision (included) \u00d7 ' + qty;
+      else if (type === 'extra_revision') label = 'Extra revision round \u00d7 ' + qty;
       else label = 'Custom line item';
 
       try {
