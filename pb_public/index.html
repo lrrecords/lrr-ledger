@@ -202,6 +202,12 @@
     background:none; border:none; color:var(--teal); font-size:14px; padding:0 4px; cursor:pointer;
   }
   .del-btn:hover{ color:var(--signal); }
+  .reorder-btn{
+    background:none; border:none; color:var(--teal); font-size:12px; padding:0 3px; cursor:pointer;
+  }
+  .reorder-btn:hover{ color:var(--brass); }
+  .reorder-btn:disabled{ color:var(--hairline); cursor:default; }
+  .row-actions{ display:flex; align-items:center; gap:2px; justify-content:flex-end; white-space:nowrap; }
 
   .footer-bar{
     display:flex;
@@ -479,7 +485,7 @@
 
     async function loadEntries(){
       const filter = "client='" + client.id + "'";
-      const res = await pbFetch('/api/collections/work_entries/records?filter=' + encodeURIComponent(filter) + '&sort=date&perPage=500');
+      const res = await pbFetch('/api/collections/work_entries/records?filter=' + encodeURIComponent(filter) + '&sort=sort_order,date&perPage=500');
       return res.items;
     }
 
@@ -492,17 +498,20 @@
       if (entries.length === 0) {
         els.ledgerBody.innerHTML = '<tr class="empty-row"><td colspan="5">No work logged yet.</td></tr>';
       } else {
-        entries.forEach(function(entry){
+        entries.forEach(function(entry, idx){
           running -= entry.cost;
           totalSpent += entry.cost;
           const tr = document.createElement('tr');
           const dateStr = new Date(entry.date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+          const reorderControls = isClientView ? '' :
+            '<button class="reorder-btn" data-id="' + entry.id + '" data-dir="up" title="Move up"' + (idx === 0 ? ' disabled' : '') + '>\u2191</button>' +
+            '<button class="reorder-btn" data-id="' + entry.id + '" data-dir="down" title="Move down"' + (idx === entries.length - 1 ? ' disabled' : '') + '>\u2193</button>';
           tr.innerHTML =
             '<td><div class="song-name">' + escapeHtml(entry.song) + '</div><div class="work-type">' + escapeHtml(entry.label) + '</div></td>' +
             '<td>' + dateStr + '</td>' +
             '<td class="num cost-cell">' + money(entry.cost) + '</td>' +
             '<td class="num balance-cell">' + money(running) + '</td>' +
-            '<td>' + (isClientView ? '' : '<button class="del-btn" data-id="' + entry.id + '" title="Remove">\u2715</button>') + '</td>';
+            '<td class="row-actions">' + reorderControls + (isClientView ? '' : '<button class="del-btn" data-id="' + entry.id + '" title="Remove">\u2715</button>') + '</td>';
           els.ledgerBody.appendChild(tr);
         });
       }
@@ -518,6 +527,29 @@
           btn.addEventListener('click', async function(){
             try {
               await pbFetch('/api/collections/work_entries/records/' + btn.getAttribute('data-id'), { method: 'DELETE' });
+              render();
+            } catch (err) { alert(err.message); }
+          });
+        });
+
+        els.ledgerBody.querySelectorAll('.reorder-btn').forEach(function(btn){
+          btn.addEventListener('click', async function(){
+            const id = btn.getAttribute('data-id');
+            const dir = btn.getAttribute('data-dir');
+            const idx = entries.findIndex(function(e){ return e.id === id; });
+            const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
+            if (swapIdx < 0 || swapIdx >= entries.length) return;
+
+            const a = entries[idx];
+            const b = entries[swapIdx];
+            const aOrder = typeof a.sort_order === 'number' ? a.sort_order : idx;
+            const bOrder = typeof b.sort_order === 'number' ? b.sort_order : swapIdx;
+
+            try {
+              await Promise.all([
+                pbFetch('/api/collections/work_entries/records/' + a.id, { method: 'PATCH', body: JSON.stringify({ sort_order: bOrder }) }),
+                pbFetch('/api/collections/work_entries/records/' + b.id, { method: 'PATCH', body: JSON.stringify({ sort_order: aOrder }) })
+              ]);
               render();
             } catch (err) { alert(err.message); }
           });
@@ -572,7 +604,8 @@
             rate: type === 'custom' ? null : RATES[type],
             cost: cost,
             date: new Date().toISOString(),
-            label: label
+            label: label,
+            sort_order: Date.now()
           })
         });
         els.songInput.value = '';
