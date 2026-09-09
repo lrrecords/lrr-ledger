@@ -406,6 +406,7 @@
       '<div class="new-client-form">' +
         '<div class="field"><label>CONTACT NAME <span class="optional-tag">optional</span></label><input id="newContact" /></div>' +
         '<div class="field"><label>PROJECT <span class="optional-tag">optional</span></label><input id="newProject" /></div>' +
+        '<div class="field"><label>EMAIL <span class="optional-tag">optional</span></label><input id="newEmail" type="email" /></div>' +
       '</div>' +
       '<button class="btn-add" id="newClientBtn">Add client</button>' +
       '<div class="save-note" id="managerNote"></div></div>';
@@ -441,12 +442,13 @@
       const budget = parseFloat(document.getElementById('newBudget').value) || 0;
       const contact_name = document.getElementById('newContact').value.trim();
       const project_name = document.getElementById('newProject').value.trim();
+      const email = document.getElementById('newEmail').value.trim();
       const note = document.getElementById('managerNote');
       if (!name || !slug) { note.textContent = 'Name and slug are required.'; return; }
       try {
         await pbFetch('/api/collections/clients/records', {
           method: 'POST',
-          body: JSON.stringify({ name: name, slug: slug, budget: budget, contact_name: contact_name, project_name: project_name })
+          body: JSON.stringify({ name: name, slug: slug, budget: budget, contact_name: contact_name, project_name: project_name, email: email })
         });
         window.location.href = '?client=' + encodeURIComponent(slug);
       } catch (err) {
@@ -489,7 +491,10 @@
         '<div class="new-client-form">' +
           '<div class="field"><label>CONTACT NAME</label><input id="contactInput" /></div>' +
           '<div class="field"><label>PROJECT</label><input id="projectInput" /></div>' +
+          '<div class="field"><label>EMAIL</label><input id="emailInput" type="email" /></div>' +
         '</div>' +
+        '<button class="btn-ghost" id="sendLedgerBtn" style="margin-top:4px;">Send ledger link to client</button>' +
+        '<div class="save-note" id="sendNote" style="margin-top:6px;"></div>' +
       '</section>') +
       '<section class="panel" id="entryPanel">' +
         '<h2>Log new work</h2>' +
@@ -522,6 +527,9 @@
       budgetInput: document.getElementById('budgetInput'),
       contactInput: document.getElementById('contactInput'),
       projectInput: document.getElementById('projectInput'),
+      emailInput: document.getElementById('emailInput'),
+      sendLedgerBtn: document.getElementById('sendLedgerBtn'),
+      sendNote: document.getElementById('sendNote'),
       spent: document.getElementById('spentValue'),
       remaining: document.getElementById('remainingValue'),
       meter: document.getElementById('meterFill'),
@@ -545,6 +553,7 @@
     if (els.dateInput) els.dateInput.value = new Date().toISOString().slice(0, 10);
     if (els.contactInput) els.contactInput.value = client.contact_name || '';
     if (els.projectInput) els.projectInput.value = client.project_name || '';
+    if (els.emailInput) els.emailInput.value = client.email || '';
 
     if (els.logoutLink) els.logoutLink.addEventListener('click', function(){ clearToken(); renderLogin(); });
 
@@ -753,6 +762,31 @@
     if (els.projectInput) els.projectInput.addEventListener('change', function(){
       saveClientField('project_name', els.projectInput.value.trim());
     });
+    if (els.emailInput) els.emailInput.addEventListener('change', function(){
+      saveClientField('email', els.emailInput.value.trim());
+    });
+
+    if (els.sendLedgerBtn) els.sendLedgerBtn.addEventListener('click', function(){
+      const email = (els.emailInput && els.emailInput.value.trim()) || client.email;
+      if (!email) {
+        els.sendNote.textContent = 'Add an email address above first.';
+        setTimeout(function(){ els.sendNote.textContent = ''; }, 2000);
+        return;
+      }
+      const link = window.location.origin + '/?client=' + encodeURIComponent(client.slug) + '&view=client';
+      const subject = 'Your work ledger \u2014 ' + client.name;
+      const greeting = client.contact_name ? 'Hi ' + client.contact_name + ',' : 'Hi,';
+      const body =
+        greeting + '\n\n' +
+        'Here\u2019s a live link to your work ledger with Little Rascal Records, showing your budget, work completed, and remaining balance:\n\n' +
+        link + '\n\n' +
+        'Feel free to check in on it anytime.\n\n' +
+        'Thanks,\nLittle Rascal Records';
+      const mailto = 'mailto:' + encodeURIComponent(email) +
+        '?subject=' + encodeURIComponent(subject) +
+        '&body=' + encodeURIComponent(body);
+      window.location.href = mailto;
+    });
 
     els.addBtn.addEventListener('click', async function(){
       const song = els.songInput.value.trim();
@@ -816,9 +850,62 @@
     render();
   }
 
+  // ---------- PUBLIC READ-ONLY VIEW (unauthenticated client link) ----------
+  async function renderPublicLedger(){
+    app.innerHTML = 'Loading\u2026';
+    try {
+      const res = await fetch(API + '/api/ledger-view/' + encodeURIComponent(clientSlug));
+      if (!res.ok) {
+        app.innerHTML = '<div class="panel">No ledger found for this link.</div>';
+        return;
+      }
+      const data = await res.json();
+      let running = data.budget;
+      let totalSpent = 0;
+
+      const rows = (data.entries || []).map(function(entry){
+        running -= entry.cost;
+        totalSpent += entry.cost;
+        const dateStr = new Date(entry.date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+        return '<tr><td><div class="song-name">' + escapeHtml(entry.song) + '</div><div class="work-type">' + escapeHtml(entry.label) + '</div></td>' +
+          '<td>' + dateStr + '</td>' +
+          '<td class="num cost-cell">' + money(entry.cost) + '</td>' +
+          '<td class="num balance-cell">' + money(running) + '</td></tr>';
+      }).join('') || '<tr class="empty-row"><td colspan="4">No work logged yet.</td></tr>';
+
+      const remaining = data.budget - totalSpent;
+      const pct = data.budget > 0 ? Math.min(100, (totalSpent / data.budget) * 100) : 0;
+
+      app.innerHTML =
+        '<header><div class="header-text">' +
+          '<h1>' + escapeHtml(data.name) + ' \u2014 Work Ledger</h1>' +
+          '<p>Prepaid to Little Rascal Records</p>' +
+        '</div></header>' +
+        '<section class="readout">' +
+          '<div class="cell"><label>BUDGET</label><div class="value">' + money(data.budget) + '</div></div>' +
+          '<div class="cell"><label>SPENT</label><div class="value">' + money(totalSpent) + '</div></div>' +
+          '<div class="cell"><label>REMAINING</label><div class="value remaining' + (remaining < 0 ? ' negative' : '') + '">' + money(remaining) + '</div></div>' +
+          '<div class="meter-track"><div class="meter-fill' + (remaining < 0 ? ' over' : '') + '" style="width:' + pct + '%;"></div></div>' +
+        '</section>' +
+        '<section class="ledger">' +
+          '<h2>Itemised log</h2>' +
+          '<table><thead><tr><th>Song / Work</th><th>Date</th><th class="num">Cost</th><th class="num">Balance</th></tr></thead>' +
+          '<tbody>' + rows + '</tbody></table>' +
+        '</section>';
+    } catch (err) {
+      app.innerHTML = '<div class="panel">Something went wrong loading this ledger.</div>';
+    }
+  }
+
   async function boot(){
     const token = getToken();
-    if (!token) { renderLogin(); return; }
+    if (!token) {
+      if (isClientView && clientSlug) {
+        return renderPublicLedger();
+      }
+      renderLogin();
+      return;
+    }
     try {
       if (clientSlug) await renderLedger();
       else await renderClientManager();

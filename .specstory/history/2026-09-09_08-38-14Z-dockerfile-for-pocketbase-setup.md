@@ -540,3 +540,55 @@ To https://github.com/lrrecords/lrr-ledger.git
 _**Agent (copilot/auto)**_
 
 Committed and pushed to `main` (`dae2686`).
+
+---
+
+_**User (2026-09-09 12:18:34Z)**_
+
+git commit -m "Add real LRR logo" then git push 
+
+---
+
+_**Agent (copilot/auto)**_
+
+<tool-use data-tool-type="generic" data-tool-name="run_in_terminal"><details>
+<summary>Tool use: **run_in_terminal**</summary>
+
+Running `git add -A; git commit -m "Add real LRR logo"; git push`
+
+Stage, commit, and push changes
+
+```bash
+git add -A; git commit -m "Add real LRR logo"; git push
+```
+
+**Result:**
+
+```
+warning: in the working copy of '.specstory/history/2026-09-09_08-38-14Z-dockerfile-for-pocketbase-setup.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of '.specstory/statistics.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pb_public/index.html', LF will be replaced by CRLF the next time Git touches it
+[main dcb8d48] Add real LRR logo
+ 4 files changed, 180 insertions(+), 14 deletions(-)
+ create mode 100644 pb_public/logo.png
+Enumerating objects: 16, done.
+Counting objects: 100% (16/16), done.
+Delta compression using up to 8 threads
+Compressing objects: 100% (9/9), done.
+Writing objects: 100% (9/9), 148.71 KiB | 9.91 MiB/s, done.
+Total 9 (delta 5), reused 0 (delta 0), pack-reused 0 (from 0)
+remote: Resolving deltas: 100% (5/5), completed with 5 local objects.
+To https://github.com/lrrecords/lrr-ledger.git
+   dae2686..dcb8d48  main -> main
+```
+</details></tool-use>
+
+_**Agent (copilot/auto)**_
+
+Committed and pushed to `main` (`dcb8d48`).
+
+---
+
+_**User (2026-09-09 12:36:15Z)**_
+
+ git commit -m "Add public read-only ledger endpoint" then git push
