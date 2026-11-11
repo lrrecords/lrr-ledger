@@ -137,6 +137,16 @@
   }
   .meter-fill.over{ background:linear-gradient(90deg, var(--signal), #d1655a); }
 
+  /* Budget of 0 = no set budget: hide Remaining, the meter and the Balance column */
+  .readout.no-budget{ grid-template-columns:1fr 1fr; }
+  .readout.no-budget.spent-only{ grid-template-columns:1fr; }
+  .no-budget .remaining-cell,
+  .no-budget .meter-track,
+  .no-budget .balance-col,
+  .spent-only .budget-cell{ display:none; }
+  .readout.spent-only .cell.spent-cell{ border:none; padding:0; }
+  .budget-hint{ font-size:10px; color:var(--paper-dim); letter-spacing:0.04em; }
+
   .panel{
     background:var(--panel);
     border:1px solid var(--hairline);
@@ -305,7 +315,7 @@
   @media (max-width:640px){
     .form-grid{ grid-template-columns:1fr 1fr; }
     .new-client-form{ grid-template-columns:1fr; }
-    .readout{ grid-template-columns:1fr; }
+    .readout, .readout.no-budget{ grid-template-columns:1fr; }
     .readout .cell + .cell{ border-left:none; border-top:1px solid var(--hairline); padding-left:0; padding-top:14px; }
     thead th:nth-child(2), tbody td:nth-child(2){ display:none; }
   }
@@ -416,7 +426,7 @@
       '<div class="new-client-form">' +
         '<div class="field"><label>NAME</label><input id="newName" /></div>' +
         '<div class="field"><label>SLUG</label><input id="newSlug" placeholder="auto-generated" /></div>' +
-        '<div class="field"><label>BUDGET</label><input id="newBudget" type="number" value="500" step="0.01" /></div>' +
+        '<div class="field"><label>BUDGET</label><input id="newBudget" type="number" value="500" step="0.01" /><span class="budget-hint">0 = no set budget</span></div>' +
       '</div>' +
       '<div class="new-client-form">' +
         '<div class="field"><label>CONTACT NAME <span class="optional-tag">optional</span></label><input id="newContact" /></div>' +
@@ -438,15 +448,27 @@
           const meta = [c.project_name, c.contact_name].filter(Boolean).join(' \u2014 ');
           return '<a href="?client=' + encodeURIComponent(c.slug) + '"><span><span class="client-name">' + escapeHtml(c.name) + '</span>' +
             (meta ? '<span class="client-meta">' + escapeHtml(meta) + '</span>' : '') +
-            '</span><span class="budget">' + money(c.budget) + ' budget</span></a>';
+            '</span><span class="budget">' + (c.budget > 0 ? money(c.budget) + ' budget' : 'No set budget') + '</span></a>';
         }).join('');
       }
     }
 
+    // Random ending so client links can't be guessed from a name (e.g. jane-smith-k7q2).
+    function randomSuffix(len){
+      const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+      const bytes = new Uint8Array(len);
+      crypto.getRandomValues(bytes);
+      let out = '';
+      for (let i = 0; i < len; i++) out += chars[bytes[i] % chars.length];
+      return out;
+    }
+    const slugSuffix = randomSuffix(4);
+
     document.getElementById('newName').addEventListener('input', function(){
       const slugField = document.getElementById('newSlug');
       if (!slugField.dataset.touched) {
-        slugField.value = this.value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        const base = this.value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        slugField.value = base ? base + '-' + slugSuffix : '';
       }
     });
     document.getElementById('newSlug').addEventListener('input', function(){ this.dataset.touched = '1'; });
@@ -490,14 +512,15 @@
         '<div class="header-text">' +
           (isClientView ? '' : '<a href="?" class="back-link">&larr; All clients</a><br/>') +
           '<h1 id="clientHeading">' + escapeHtml(client.name) + ' — Work Ledger</h1>' +
-          '<p id="clientSub">' + (isClientView ? 'Prepaid to Little Rascal Records' : escapeHtml(client.slug)) + '</p>' +
+          '<p id="clientSub">' + (isClientView ? (client.budget > 0 ? 'Prepaid to Little Rascal Records' : 'Little Rascal Records') : escapeHtml(client.slug)) + '</p>' +
         '</div>' +
         (isClientView ? '' : '<span class="logout-link" id="logoutLink">Sign out</span>') +
       '</header>' +
-      '<section class="readout">' +
-        '<div class="cell"><label>BUDGET</label><input class="editable-budget" id="budgetInput" /></div>' +
-        '<div class="cell"><label>SPENT</label><div class="value" id="spentValue">$0.00</div></div>' +
-        '<div class="cell"><label>REMAINING</label><div class="value remaining" id="remainingValue">$0.00</div></div>' +
+      '<section class="readout" id="readout">' +
+        '<div class="cell budget-cell"><label>BUDGET</label><input class="editable-budget" id="budgetInput" />' +
+          (isClientView ? '' : '<span class="budget-hint">0 = no set budget</span>') + '</div>' +
+        '<div class="cell spent-cell"><label id="spentLabel">SPENT</label><div class="value" id="spentValue">$0.00</div></div>' +
+        '<div class="cell remaining-cell"><label>REMAINING</label><div class="value remaining" id="remainingValue">$0.00</div></div>' +
         '<div class="meter-track"><div class="meter-fill" id="meterFill" style="width:0%;"></div></div>' +
       '</section>' +
       (isClientView ? '' :
@@ -531,9 +554,9 @@
         '</div>' +
         '<div class="hint" id="rateHint"></div>' +
       '</section>' +
-      '<section class="ledger">' +
+      '<section class="ledger" id="ledgerSection">' +
         '<h2>Itemised log</h2>' +
-        '<table><thead><tr><th>Song / Work</th><th>Date</th><th class="num">Cost</th><th class="num">Balance</th><th></th></tr></thead>' +
+        '<table><thead><tr><th>Song / Work</th><th>Date</th><th class="num">Cost</th><th class="num balance-col">Balance</th><th></th></tr></thead>' +
         '<tbody id="ledgerBody"><tr class="empty-row"><td colspan="5">Loading…</td></tr></tbody></table>' +
       '</section>' +
       '<div class="footer-bar"><span id="saveNote" class="save-note"></span>' +
@@ -550,6 +573,9 @@
       spent: document.getElementById('spentValue'),
       remaining: document.getElementById('remainingValue'),
       meter: document.getElementById('meterFill'),
+      readout: document.getElementById('readout'),
+      ledgerSection: document.getElementById('ledgerSection'),
+      spentLabel: document.getElementById('spentLabel'),
       entryPanel: document.getElementById('entryPanel'),
       songInput: document.getElementById('songInput'),
       workType: document.getElementById('workType'),
@@ -630,11 +656,16 @@
             '<td>' + dragHandle + '<div class="song-name">' + escapeHtml(entry.song) + '</div><div class="work-type">' + escapeHtml(entry.label) + '</div></td>' +
             '<td>' + dateCell + '</td>' +
             '<td class="num cost-cell">' + money(entry.cost) + '</td>' +
-            '<td class="num balance-cell">' + money(running) + '</td>' +
+            '<td class="num balance-cell balance-col">' + money(running) + '</td>' +
             '<td class="row-actions">' + touchControls + (isClientView ? '' : '<button class="del-btn" data-id="' + entry.id + '" title="Remove">\u2715</button>') + '</td>';
           els.ledgerBody.appendChild(tr);
         });
       }
+      const noBudget = !(client.budget > 0);
+      els.readout.classList.toggle('no-budget', noBudget);
+      els.readout.classList.toggle('spent-only', noBudget && isClientView);
+      els.ledgerSection.classList.toggle('no-budget', noBudget);
+      els.spentLabel.textContent = noBudget ? 'TOTAL SPENT' : 'SPENT';
       els.spent.textContent = money(totalSpent);
       els.remaining.textContent = money(running);
       els.remaining.classList.toggle('negative', running < 0);
@@ -795,7 +826,9 @@
       const greeting = client.contact_name ? 'Hi ' + client.contact_name + ',' : 'Hi,';
       const body =
         greeting + '\n\n' +
-        'Here\u2019s a live link to your work ledger with Little Rascal Records, showing your budget, work completed, and remaining balance:\n\n' +
+        (client.budget > 0
+          ? 'Here\u2019s a live link to your work ledger with Little Rascal Records, showing your budget, work completed, and remaining balance:\n\n'
+          : 'Here\u2019s a live link to your work ledger with Little Rascal Records, showing the work completed and the running total:\n\n') +
         link + '\n\n' +
         'Feel free to check in on it anytime.\n\n' +
         'Thanks,\nLittle Rascal Records';
@@ -906,26 +939,28 @@
         return '<tr><td><div class="song-name">' + escapeHtml(entry.song) + '</div><div class="work-type">' + escapeHtml(entry.label) + '</div></td>' +
           '<td>' + dateStr + '</td>' +
           '<td class="num cost-cell">' + money(entry.cost) + '</td>' +
-          '<td class="num balance-cell">' + money(running) + '</td></tr>';
+          '<td class="num balance-cell balance-col">' + money(running) + '</td></tr>';
       }).join('') || '<tr class="empty-row"><td colspan="4">No work logged yet.</td></tr>';
 
       const remaining = data.budget - totalSpent;
       const pct = data.budget > 0 ? Math.min(100, (totalSpent / data.budget) * 100) : 0;
+      const noBudget = !(data.budget > 0);
+      const nb = noBudget ? ' no-budget' : '';
 
       app.innerHTML =
         '<header><div class="header-text">' +
           '<h1>' + escapeHtml(data.name) + ' \u2014 Work Ledger</h1>' +
-          '<p>Prepaid to Little Rascal Records</p>' +
+          '<p>' + (noBudget ? 'Little Rascal Records' : 'Prepaid to Little Rascal Records') + '</p>' +
         '</div></header>' +
-        '<section class="readout">' +
-          '<div class="cell"><label>BUDGET</label><div class="value">' + money(data.budget) + '</div></div>' +
-          '<div class="cell"><label>SPENT</label><div class="value">' + money(totalSpent) + '</div></div>' +
-          '<div class="cell"><label>REMAINING</label><div class="value remaining' + (remaining < 0 ? ' negative' : '') + '">' + money(remaining) + '</div></div>' +
+        '<section class="readout' + nb + (noBudget ? ' spent-only' : '') + '">' +
+          '<div class="cell budget-cell"><label>BUDGET</label><div class="value">' + money(data.budget) + '</div></div>' +
+          '<div class="cell spent-cell"><label>' + (noBudget ? 'TOTAL SPENT' : 'SPENT') + '</label><div class="value">' + money(totalSpent) + '</div></div>' +
+          '<div class="cell remaining-cell"><label>REMAINING</label><div class="value remaining' + (remaining < 0 ? ' negative' : '') + '">' + money(remaining) + '</div></div>' +
           '<div class="meter-track"><div class="meter-fill' + (remaining < 0 ? ' over' : '') + '" style="width:' + pct + '%;"></div></div>' +
         '</section>' +
-        '<section class="ledger">' +
+        '<section class="ledger' + nb + '">' +
           '<h2>Itemised log</h2>' +
-          '<table><thead><tr><th>Song / Work</th><th>Date</th><th class="num">Cost</th><th class="num">Balance</th></tr></thead>' +
+          '<table><thead><tr><th>Song / Work</th><th>Date</th><th class="num">Cost</th><th class="num balance-col">Balance</th></tr></thead>' +
           '<tbody>' + rows + '</tbody></table>' +
         '</section>';
     } catch (err) {
