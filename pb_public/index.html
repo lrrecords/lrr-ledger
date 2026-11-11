@@ -999,6 +999,7 @@
         render();
       } catch (err) {
         els.saveNote.textContent = 'Save failed';
+        els.rateHint.textContent = 'Could not add: ' + (err.message || 'save failed');
       }
     });
 
