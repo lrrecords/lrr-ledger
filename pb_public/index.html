@@ -374,7 +374,10 @@
     }
     if (!res.ok) {
       const body = await res.json().catch(function(){ return {}; });
-      throw new Error(body.message || ('Request failed (' + res.status + ')'));
+      const fieldErrors = body.data ? Object.keys(body.data).map(function(k){
+        return k + ': ' + ((body.data[k] && body.data[k].message) || 'invalid');
+      }) : [];
+      throw new Error((body.message || ('Request failed (' + res.status + ')')) + (fieldErrors.length ? ' ' + fieldErrors.join('; ') : ''));
     }
     return res.status === 204 ? null : res.json();
   }
