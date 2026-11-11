@@ -182,6 +182,10 @@
   }
   .field input:focus, .field select:focus{ outline:none; border-color:var(--brass); }
   .field .hint{ font-size:10px; color:var(--teal); }
+  .work-extras{ display:flex; flex-wrap:wrap; align-items:center; gap:18px; margin:0 0 8px; }
+  .work-extras .sale-toggle{ margin:0; }
+  .discount-pick{ display:inline-flex; align-items:center; gap:8px; font-size:10px; letter-spacing:0.06em; color:var(--paper-dim); }
+  .discount-pick select{ background:var(--panel-raised); color:var(--paper); border:1px solid var(--hairline); padding:6px 8px; font:inherit; font-size:12px; letter-spacing:0; }
   .sale-toggle{ align-items:center; gap:8px; font-size:12px; color:var(--paper); margin:0 0 8px; cursor:pointer; }
   .sale-toggle input{ accent-color:var(--brass); width:16px; height:16px; }
 
@@ -338,7 +342,7 @@
 <script>
 (function(){
   const API = window.location.origin;
-  const RATES = { editing: 50, mastering: 50, stem: 175, revision: 0, extra_revision: 45,
+  const RATES = { editing: 50, mastering: 50, stem: 165, revision: 0, extra_revision: 45,
     mmb_nm_yd: 450, mmb_nm_nd: 350, mmb_ym_yd: 500, mmb_ym_nd: 400,
     mms_nm_yd_yb: 315, mms_nm_yd_nb: 300, mms_nm_nd_yb: 215, mms_nm_nd_nb: 200, mms_ym_yd_yb: 365, mms_ym_yd_nb: 350, mms_ym_nd_yb: 265, mms_ym_nd_nb: 250,
     sm_full: 100, sm_solo: 50 };
@@ -353,6 +357,10 @@
     mmb_nm_yd: 'song', mmb_nm_nd: 'song', mmb_ym_yd: 'song', mmb_ym_nd: 'song',
     mms_nm_yd_yb: 'song', mms_nm_yd_nb: 'song', mms_nm_nd_yb: 'song', mms_nm_nd_nb: 'song', mms_ym_yd_yb: 'song', mms_ym_yd_nb: 'song', mms_ym_nd_yb: 'song', mms_ym_nd_nb: 'song',
     sm_full: 'song', sm_solo: 'solo' };
+  // Discounts offered when logging work. Add more here: key: { name, pct }
+  const DISCOUNTS = {
+    solo_artist: { name: 'Solo Artist', pct: 20 }
+  };
   // Line-item names for types whose label is "<name> x qty"
   const TYPE_NAMES = {
     mmb_nm_yd: 'Mix & Master (Band) \u2014 No Mastering, Yes Drums',
@@ -606,7 +614,12 @@
           '<div class="field"><label>DATE</label><input id="dateInput" type="date" /></div>' +
           '<button class="btn-add" id="addBtn">Add</button>' +
         '</div>' +
-        '<label class="sale-toggle" id="saleField" style="display:none;"><input type="checkbox" id="saleInput" /> Use sale price</label>' +
+        '<div class="work-extras">' +
+          '<label class="sale-toggle" id="saleField" style="display:none;"><input type="checkbox" id="saleInput" /> Use sale price</label>' +
+          '<label class="discount-pick">DISCOUNT <select id="discountInput"><option value="">None</option>' +
+            Object.keys(DISCOUNTS).map(function(k){ return '<option value="' + k + '">' + escapeHtml(DISCOUNTS[k].name) + ' (' + DISCOUNTS[k].pct + '% off)</option>'; }).join('') +
+          '</select></label>' +
+        '</div>' +
         '<div class="hint" id="rateHint"></div>' +
       '</section>' +
       '<section class="ledger" id="ledgerSection">' +
@@ -643,6 +656,7 @@
       rateHint: document.getElementById('rateHint'),
       saleField: document.getElementById('saleField'),
       saleInput: document.getElementById('saleInput'),
+      discountInput: document.getElementById('discountInput'),
       addBtn: document.getElementById('addBtn'),
       ledgerBody: document.getElementById('ledgerBody'),
       saveNote: document.getElementById('saveNote'),
@@ -663,19 +677,29 @@
     function currentRate(type){
       return usingSale(type) ? SALE_RATES[type] : RATES[type];
     }
-    function computeCost(){
+    function currentDiscount(){
+      return DISCOUNTS[els.discountInput.value] || null;
+    }
+    function baseCost(){
       const type = els.workType.value;
       if (type === 'custom') return parseFloat(els.customCostInput.value) || 0;
       const qty = parseFloat(els.qtyInput.value) || 0;
       return qty * currentRate(type);
     }
+    function computeCost(){
+      const base = baseCost();
+      const d = currentDiscount();
+      return d ? Math.round(base * (100 - d.pct)) / 100 : base;
+    }
     function updateHint(){
       const type = els.workType.value;
-      if (type === 'custom') { els.rateHint.textContent = 'Custom line item'; return; }
+      const d = currentDiscount();
+      const discountText = d ? ' \u2212 ' + d.pct + '% ' + d.name + ' = ' + money(computeCost()) : '';
+      if (type === 'custom') { els.rateHint.textContent = 'Custom line item' + (d ? ': ' + money(baseCost()) + discountText : ''); return; }
       const qty = parseFloat(els.qtyInput.value) || 0;
       const rate = currentRate(type);
       const unit = UNITS[type];
-      els.rateHint.textContent = qty + ' ' + unit + (qty === 1 ? '' : 's') + ' \u00d7 $' + rate + '/' + unit + ' = ' + money(qty * rate);
+      els.rateHint.textContent = qty + ' ' + unit + (qty === 1 ? '' : 's') + ' \u00d7 $' + rate + '/' + unit + ' = ' + money(qty * rate) + discountText;
     }
     function onWorkTypeChange(){
       const type = els.workType.value;
@@ -835,6 +859,13 @@
     els.qtyInput.addEventListener('input', updateHint);
     els.saleInput.addEventListener('change', updateHint);
     els.customCostInput.addEventListener('input', updateHint);
+    // Remember the chosen discount per client on this device
+    const discountKey = 'ledger_discount_' + client.id;
+    try { const saved = localStorage.getItem(discountKey); if (saved && DISCOUNTS[saved]) els.discountInput.value = saved; } catch (e) {}
+    els.discountInput.addEventListener('change', function(){
+      try { localStorage.setItem(discountKey, els.discountInput.value); } catch (e) {}
+      updateHint();
+    });
 
     els.budgetInput.addEventListener('change', async function(){
       const val = parseFloat(els.budgetInput.value);
@@ -937,6 +968,8 @@
       else if (type === 'extra_revision') label = 'Extra revision round \u00d7 ' + qty;
       else if (TYPE_NAMES[type]) label = TYPE_NAMES[type] + ' \u00d7 ' + qty + (usingSale(type) ? ' (sale price)' : '');
       else label = 'Custom line item';
+      const disc = currentDiscount();
+      if (disc) label += ' \u2014 ' + disc.name + ' ' + disc.pct + '% off (was ' + money(baseCost()) + ')';
 
       try {
         els.saveNote.textContent = 'Saving\u2026';
