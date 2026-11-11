@@ -678,6 +678,8 @@
       return usingSale(type) ? SALE_RATES[type] : RATES[type];
     }
     function currentDiscount(){
+      // No discount note on free ($0) lines
+      if (!(baseCost() > 0)) return null;
       return DISCOUNTS[els.discountInput.value] || null;
     }
     function baseCost(){
