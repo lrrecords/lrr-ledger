@@ -339,19 +339,31 @@
 (function(){
   const API = window.location.origin;
   const RATES = { editing: 50, mastering: 50, stem: 175, revision: 0, extra_revision: 45,
-    mmb_nm_yd: 450, mmb_nm_nd: 350, mmb_ym_yd: 500, mmb_ym_nd: 400 };
+    mmb_nm_yd: 450, mmb_nm_nd: 350, mmb_ym_yd: 500, mmb_ym_nd: 400,
+    mms_nm_yd_yb: 315, mms_nm_yd_nb: 300, mms_nm_nd_yb: 215, mms_nm_nd_nb: 200, mms_ym_yd_yb: 365, mms_ym_yd_nb: 350, mms_ym_nd_yb: 265, mms_ym_nd_nb: 250 };
   // Sale prices (used when "Sale price" is ticked while logging work)
-  const SALE_RATES = { mmb_nm_yd: 360, mmb_nm_nd: 336, mmb_ym_yd: 456, mmb_ym_nd: 376 };
+  const SALE_RATES = { mmb_nm_yd: 360, mmb_nm_nd: 336, mmb_ym_yd: 456, mmb_ym_nd: 376,
+    mms_nm_yd_yb: 252, mms_nm_yd_nb: 240, mms_nm_nd_yb: 172, mms_nm_nd_nb: 160, mms_ym_yd_yb: 292, mms_ym_yd_nb: 280, mms_ym_nd_yb: 212, mms_ym_nd_nb: 200 };
   const QTY_LABELS = { editing: 'HOURS', mastering: 'SONGS', stem: 'SONGS', revision: 'ROUNDS', extra_revision: 'ROUNDS', custom: 'QTY',
-    mmb_nm_yd: 'SONGS', mmb_nm_nd: 'SONGS', mmb_ym_yd: 'SONGS', mmb_ym_nd: 'SONGS' };
+    mmb_nm_yd: 'SONGS', mmb_nm_nd: 'SONGS', mmb_ym_yd: 'SONGS', mmb_ym_nd: 'SONGS',
+    mms_nm_yd_yb: 'SONGS', mms_nm_yd_nb: 'SONGS', mms_nm_nd_yb: 'SONGS', mms_nm_nd_nb: 'SONGS', mms_ym_yd_yb: 'SONGS', mms_ym_yd_nb: 'SONGS', mms_ym_nd_yb: 'SONGS', mms_ym_nd_nb: 'SONGS' };
   const UNITS = { editing: 'hr', mastering: 'song', stem: 'song', revision: 'round', extra_revision: 'round',
-    mmb_nm_yd: 'song', mmb_nm_nd: 'song', mmb_ym_yd: 'song', mmb_ym_nd: 'song' };
+    mmb_nm_yd: 'song', mmb_nm_nd: 'song', mmb_ym_yd: 'song', mmb_ym_nd: 'song',
+    mms_nm_yd_yb: 'song', mms_nm_yd_nb: 'song', mms_nm_nd_yb: 'song', mms_nm_nd_nb: 'song', mms_ym_yd_yb: 'song', mms_ym_yd_nb: 'song', mms_ym_nd_yb: 'song', mms_ym_nd_nb: 'song' };
   // Line-item names for types whose label is "<name> x qty"
   const TYPE_NAMES = {
     mmb_nm_yd: 'Mix & Master (Band) \u2014 No Mastering, Yes Drums',
     mmb_nm_nd: 'Mix & Master (Band) \u2014 No Mastering, No Drums',
     mmb_ym_yd: 'Mix & Master (Band) \u2014 Yes Mastering, Yes Drums',
-    mmb_ym_nd: 'Mix & Master (Band) \u2014 Yes Mastering, No Drums'
+    mmb_ym_nd: 'Mix & Master (Band) \u2014 Yes Mastering, No Drums',
+    mms_nm_yd_yb: 'Mix & Master (Solo) \u2014 No Mastering, Yes Drums, Yes Backing Track',
+    mms_nm_yd_nb: 'Mix & Master (Solo) \u2014 No Mastering, Yes Drums, No Backing Track',
+    mms_nm_nd_yb: 'Mix & Master (Solo) \u2014 No Mastering, No Drums, Yes Backing Track',
+    mms_nm_nd_nb: 'Mix & Master (Solo) \u2014 No Mastering, No Drums, No Backing Track',
+    mms_ym_yd_yb: 'Mix & Master (Solo) \u2014 Yes Mastering, Yes Drums, Yes Backing Track',
+    mms_ym_yd_nb: 'Mix & Master (Solo) \u2014 Yes Mastering, Yes Drums, No Backing Track',
+    mms_ym_nd_yb: 'Mix & Master (Solo) \u2014 Yes Mastering, No Drums, Yes Backing Track',
+    mms_ym_nd_nb: 'Mix & Master (Solo) \u2014 Yes Mastering, No Drums, No Backing Track'
   };
 
   const isCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
@@ -567,6 +579,16 @@
               '<option value="mmb_nm_nd">Band: No Mastering \u2022 No Drums</option>' +
               '<option value="mmb_ym_yd">Band: Yes Mastering \u2022 Yes Drums</option>' +
               '<option value="mmb_ym_nd">Band: Yes Mastering \u2022 No Drums</option>' +
+            '</optgroup>' +
+            '<optgroup label="Mix &amp; Master (Solo)">' +
+              '<option value="mms_nm_yd_yb">Solo: No Mastering \u2022 Yes Drums \u2022 Yes Backing Track</option>' +
+              '<option value="mms_nm_yd_nb">Solo: No Mastering \u2022 Yes Drums \u2022 No Backing Track</option>' +
+              '<option value="mms_nm_nd_yb">Solo: No Mastering \u2022 No Drums \u2022 Yes Backing Track</option>' +
+              '<option value="mms_nm_nd_nb">Solo: No Mastering \u2022 No Drums \u2022 No Backing Track</option>' +
+              '<option value="mms_ym_yd_yb">Solo: Yes Mastering \u2022 Yes Drums \u2022 Yes Backing Track</option>' +
+              '<option value="mms_ym_yd_nb">Solo: Yes Mastering \u2022 Yes Drums \u2022 No Backing Track</option>' +
+              '<option value="mms_ym_nd_yb">Solo: Yes Mastering \u2022 No Drums \u2022 Yes Backing Track</option>' +
+              '<option value="mms_ym_nd_nb">Solo: Yes Mastering \u2022 No Drums \u2022 No Backing Track</option>' +
             '</optgroup>' +
             '<option value="custom">Custom</option>' +
           '</select></div>' +
