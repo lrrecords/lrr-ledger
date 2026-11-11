@@ -182,6 +182,8 @@
   }
   .field input:focus, .field select:focus{ outline:none; border-color:var(--brass); }
   .field .hint{ font-size:10px; color:var(--teal); }
+  .sale-toggle{ align-items:center; gap:8px; font-size:12px; color:var(--paper); margin:0 0 8px; cursor:pointer; }
+  .sale-toggle input{ accent-color:var(--brass); width:16px; height:16px; }
 
   button{
     font-family:'IBM Plex Mono', monospace;
@@ -336,9 +338,21 @@
 <script>
 (function(){
   const API = window.location.origin;
-  const RATES = { editing: 50, mastering: 50, stem: 175, revision: 0, extra_revision: 45 };
-  const QTY_LABELS = { editing: 'HOURS', mastering: 'SONGS', stem: 'SONGS', revision: 'ROUNDS', extra_revision: 'ROUNDS', custom: 'QTY' };
-  const UNITS = { editing: 'hr', mastering: 'song', stem: 'song', revision: 'round', extra_revision: 'round' };
+  const RATES = { editing: 50, mastering: 50, stem: 175, revision: 0, extra_revision: 45,
+    mmb_nm_yd: 450, mmb_nm_nd: 350, mmb_ym_yd: 500, mmb_ym_nd: 400 };
+  // Sale prices (used when "Sale price" is ticked while logging work)
+  const SALE_RATES = { mmb_nm_yd: 360, mmb_nm_nd: 336, mmb_ym_yd: 456, mmb_ym_nd: 376 };
+  const QTY_LABELS = { editing: 'HOURS', mastering: 'SONGS', stem: 'SONGS', revision: 'ROUNDS', extra_revision: 'ROUNDS', custom: 'QTY',
+    mmb_nm_yd: 'SONGS', mmb_nm_nd: 'SONGS', mmb_ym_yd: 'SONGS', mmb_ym_nd: 'SONGS' };
+  const UNITS = { editing: 'hr', mastering: 'song', stem: 'song', revision: 'round', extra_revision: 'round',
+    mmb_nm_yd: 'song', mmb_nm_nd: 'song', mmb_ym_yd: 'song', mmb_ym_nd: 'song' };
+  // Line-item names for types whose label is "<name> x qty"
+  const TYPE_NAMES = {
+    mmb_nm_yd: 'Mix & Master (Band) \u2014 No Mastering, Yes Drums',
+    mmb_nm_nd: 'Mix & Master (Band) \u2014 No Mastering, No Drums',
+    mmb_ym_yd: 'Mix & Master (Band) \u2014 Yes Mastering, Yes Drums',
+    mmb_ym_nd: 'Mix & Master (Band) \u2014 Yes Mastering, No Drums'
+  };
 
   const isCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
 
@@ -548,6 +562,12 @@
             '<option value="stem">Stem mastering</option>' +
             '<option value="revision">Revision (included)</option>' +
             '<option value="extra_revision">Extra revision round</option>' +
+            '<optgroup label="Mix &amp; Master (Band)">' +
+              '<option value="mmb_nm_yd">Band: No Mastering \u2022 Yes Drums</option>' +
+              '<option value="mmb_nm_nd">Band: No Mastering \u2022 No Drums</option>' +
+              '<option value="mmb_ym_yd">Band: Yes Mastering \u2022 Yes Drums</option>' +
+              '<option value="mmb_ym_nd">Band: Yes Mastering \u2022 No Drums</option>' +
+            '</optgroup>' +
             '<option value="custom">Custom</option>' +
           '</select></div>' +
           '<div class="field" id="qtyField"><label id="qtyLabel">HOURS</label><input id="qtyInput" type="number" value="1" step="0.5" /></div>' +
@@ -555,6 +575,7 @@
           '<div class="field"><label>DATE</label><input id="dateInput" type="date" /></div>' +
           '<button class="btn-add" id="addBtn">Add</button>' +
         '</div>' +
+        '<label class="sale-toggle" id="saleField" style="display:none;"><input type="checkbox" id="saleInput" /> Use sale price</label>' +
         '<div class="hint" id="rateHint"></div>' +
       '</section>' +
       '<section class="ledger" id="ledgerSection">' +
@@ -589,6 +610,8 @@
       customCostInput: document.getElementById('customCostInput'),
       dateInput: document.getElementById('dateInput'),
       rateHint: document.getElementById('rateHint'),
+      saleField: document.getElementById('saleField'),
+      saleInput: document.getElementById('saleInput'),
       addBtn: document.getElementById('addBtn'),
       ledgerBody: document.getElementById('ledgerBody'),
       saveNote: document.getElementById('saveNote'),
@@ -603,23 +626,31 @@
 
     if (els.logoutLink) els.logoutLink.addEventListener('click', function(){ clearToken(); renderLogin(); });
 
+    function usingSale(type){
+      return SALE_RATES[type] !== undefined && els.saleInput.checked;
+    }
+    function currentRate(type){
+      return usingSale(type) ? SALE_RATES[type] : RATES[type];
+    }
     function computeCost(){
       const type = els.workType.value;
       if (type === 'custom') return parseFloat(els.customCostInput.value) || 0;
       const qty = parseFloat(els.qtyInput.value) || 0;
-      return qty * RATES[type];
+      return qty * currentRate(type);
     }
     function updateHint(){
       const type = els.workType.value;
       if (type === 'custom') { els.rateHint.textContent = 'Custom line item'; return; }
       const qty = parseFloat(els.qtyInput.value) || 0;
-      const rate = RATES[type];
+      const rate = currentRate(type);
       const unit = UNITS[type];
       els.rateHint.textContent = qty + ' ' + unit + (qty === 1 ? '' : 's') + ' \u00d7 $' + rate + '/' + unit + ' = ' + money(qty * rate);
     }
     function onWorkTypeChange(){
       const type = els.workType.value;
       els.qtyLabel.textContent = QTY_LABELS[type];
+      els.saleField.style.display = SALE_RATES[type] !== undefined ? 'inline-flex' : 'none';
+      els.saleInput.checked = false;
       if (type === 'custom') { els.qtyField.style.display = 'none'; els.customCostField.style.display = 'flex'; }
       else { els.qtyField.style.display = 'flex'; els.customCostField.style.display = 'none'; }
       updateHint();
@@ -771,6 +802,7 @@
 
     els.workType.addEventListener('change', onWorkTypeChange);
     els.qtyInput.addEventListener('input', updateHint);
+    els.saleInput.addEventListener('change', updateHint);
     els.customCostInput.addEventListener('input', updateHint);
 
     els.budgetInput.addEventListener('change', async function(){
@@ -872,6 +904,7 @@
       else if (type === 'stem') label = 'Stem mastering \u00d7 ' + qty;
       else if (type === 'revision') label = 'Revision (included) \u00d7 ' + qty;
       else if (type === 'extra_revision') label = 'Extra revision round \u00d7 ' + qty;
+      else if (TYPE_NAMES[type]) label = TYPE_NAMES[type] + ' \u00d7 ' + qty + (usingSale(type) ? ' (sale price)' : '');
       else label = 'Custom line item';
 
       try {
@@ -886,7 +919,7 @@
             song: song,
             work_type: type,
             quantity: type === 'custom' ? null : qty,
-            rate: type === 'custom' ? null : RATES[type],
+            rate: type === 'custom' ? null : currentRate(type),
             cost: cost,
             date: chosenDate,
             label: label,
